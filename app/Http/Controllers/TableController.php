@@ -55,6 +55,16 @@ class TableController extends Controller
         $hasDatabase = false;
         $tableExists = false;
 
+        // Get query parameters
+        $search = $request->input('search');
+        $sortColumn = $request->input('sort');
+        $sortDirection = $request->input('direction', 'desc');
+
+        // Validate sort direction
+        if (! in_array($sortDirection, ['asc', 'desc'])) {
+            $sortDirection = 'desc';
+        }
+
         if ($project && $project->hasDatabase()) {
             $hasDatabase = true;
             $dbService = new ProjectDatabaseService($project);
@@ -66,7 +76,7 @@ class TableController extends Controller
                 if (in_array($table, $availableTables, true)) {
                     $tableExists = true;
                     $columns = $dbService->getTableColumns($table)->toArray();
-                    $data = $dbService->getTableData($table, 15);
+                    $data = $dbService->getTableData($table, 15, $search, $sortColumn, $sortDirection);
                     $foreignKeys = $dbService->getTableForeignKeys($table);
                 }
             }
@@ -85,6 +95,11 @@ class TableController extends Controller
             'foreignKeys' => $foreignKeys,
             'hasDatabase' => $hasDatabase,
             'isPinned' => in_array($table, $project->pinned_tables ?? []),
+            'filters' => [
+                'search' => $search,
+                'sort' => $sortColumn,
+                'direction' => $sortDirection,
+            ],
         ]);
     }
 

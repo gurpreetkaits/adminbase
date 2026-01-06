@@ -36,6 +36,13 @@ class ProjectDatabaseService
                 'prefix' => '',
                 'strict' => true,
                 'engine' => null,
+                'modes' => [
+                    'STRICT_TRANS_TABLES',
+                    'NO_ZERO_IN_DATE',
+                    'NO_ZERO_DATE',
+                    'ERROR_FOR_DIVISION_BY_ZERO',
+                    'NO_ENGINE_SUBSTITUTION',
+                ],
             ],
         ]);
 
@@ -156,7 +163,7 @@ class ProjectDatabaseService
     /**
      * @return LengthAwarePaginator<object>
      */
-    public function getTableData(string $table, int $perPage = 15): LengthAwarePaginator
+    public function getTableData(string $table, int $perPage = 15, ?string $search = null, ?string $sortColumn = null, string $sortDirection = 'desc'): LengthAwarePaginator
     {
         $connection = $this->connect();
 
@@ -164,8 +171,31 @@ class ProjectDatabaseService
             return new LengthAwarePaginator([], 0, $perPage);
         }
 
-        return $connection->table($table)
-            ->paginate($perPage);
+        $query = $connection->table($table);
+
+        // Apply search across all columns
+        if ($search) {
+            $columns = $this->getTableColumns($table);
+            $query->where(function ($q) use ($columns, $search) {
+                foreach ($columns as $column) {
+                    $q->orWhere($column, 'like', "%{$search}%");
+                }
+            });
+        }
+
+        // Apply sorting
+        if ($sortColumn && in_array($sortColumn, $this->getTableColumns($table)->toArray())) {
+            $query->orderBy($sortColumn, $sortDirection);
+        } else {
+            // Default sort by primary key or first column descending
+            $primaryKey = $this->getPrimaryKey($table);
+            $defaultColumn = $primaryKey ?: $this->getTableColumns($table)->first();
+            if ($defaultColumn) {
+                $query->orderBy($defaultColumn, 'desc');
+            }
+        }
+
+        return $query->paginate($perPage);
     }
 
     public function getTableRowCount(string $table): int
