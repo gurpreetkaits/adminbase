@@ -23,6 +23,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::post('projects/test-connection', [ProjectController::class, 'testConnection'])->name('projects.test-connection');
     Route::post('projects/{project}/switch', [ProjectController::class, 'switch'])->name('projects.switch');
+    Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
     Route::get('users', [ProjectUserController::class, 'index'])->name('users.index');
     Route::get('feedbacks', [FeedbackController::class, 'index'])->name('feedbacks.index');
 

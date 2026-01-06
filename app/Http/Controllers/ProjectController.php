@@ -46,6 +46,21 @@ class ProjectController extends Controller
         return redirect()->back();
     }
 
+    public function destroy(Request $request, Project $project): RedirectResponse
+    {
+        $currentProjectId = $request->session()->get('current_project_id');
+
+        $project->delete();
+
+        // If deleted project was the current one, switch to another project
+        if ($currentProjectId === $project->id) {
+            $nextProject = Project::first();
+            $request->session()->put('current_project_id', $nextProject?->id);
+        }
+
+        return redirect()->route('tables.index')->with('success', 'Project deleted successfully.');
+    }
+
     public function testConnection(Request $request): JsonResponse
     {
         $request->validate([
