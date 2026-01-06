@@ -1,10 +1,10 @@
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
-import { index as tablesIndex, show as showTable, pin, unpin } from '@/actions/App/Http/Controllers/TableController';
+import { index as tablesIndex, show as showTable, pin, unpin, record as recordRoute } from '@/actions/App/Http/Controllers/TableController';
 import { create as createProject } from '@/actions/App/Http/Controllers/ProjectController';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, Database, Pin, PinOff, Table2 } from 'lucide-react';
+import { ArrowLeft, Database, ExternalLink, Pin, PinOff, Table2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface PaginatedData {
@@ -22,10 +22,16 @@ interface PaginatedData {
     }>;
 }
 
+interface ForeignKey {
+    table: string;
+    column: string;
+}
+
 interface Props {
     table: string;
     data: PaginatedData;
     columns: string[];
+    foreignKeys: Record<string, ForeignKey>;
     hasDatabase: boolean;
     isPinned: boolean;
 }
@@ -47,9 +53,28 @@ function formatValue(value: unknown): string {
     return str.length > 100 ? str.substring(0, 100) + '...' : str;
 }
 
-export default function TableShow({ table, data, columns, hasDatabase, isPinned: initialIsPinned }: Props) {
+export default function TableShow({ table, data, columns, foreignKeys, hasDatabase, isPinned: initialIsPinned }: Props) {
     const { currentProject } = usePage<SharedData>().props;
     const [isPinned, setIsPinned] = useState(initialIsPinned);
+
+    const renderCellValue = (column: string, value: unknown) => {
+        const fk = foreignKeys[column];
+        const displayValue = formatValue(value);
+
+        if (fk && value !== null && value !== undefined) {
+            return (
+                <Link
+                    href={recordRoute.url({ table: fk.table, id: String(value) })}
+                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                >
+                    {displayValue}
+                    <ExternalLink className="size-3" />
+                </Link>
+            );
+        }
+
+        return <span>{displayValue}</span>;
+    };
     const [pinning, setPinning] = useState(false);
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -189,10 +214,8 @@ export default function TableShow({ table, data, columns, hasDatabase, isPinned:
                                             className="border-b border-sidebar-border/70 last:border-0 dark:border-sidebar-border"
                                         >
                                             {columns.map((column) => (
-                                                <td key={column} className="whitespace-nowrap px-4 py-3">
-                                                    <span className="text-sm">
-                                                        {formatValue(row[column])}
-                                                    </span>
+                                                <td key={column} className="whitespace-nowrap px-4 py-3 text-sm">
+                                                    {renderCellValue(column, row[column])}
                                                 </td>
                                             ))}
                                         </tr>

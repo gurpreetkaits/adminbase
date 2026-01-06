@@ -51,6 +51,7 @@ class TableController extends Controller
 
         $data = [];
         $columns = [];
+        $foreignKeys = [];
         $hasDatabase = false;
         $tableExists = false;
 
@@ -66,6 +67,7 @@ class TableController extends Controller
                     $tableExists = true;
                     $columns = $dbService->getTableColumns($table)->toArray();
                     $data = $dbService->getTableData($table, 15);
+                    $foreignKeys = $dbService->getTableForeignKeys($table);
                 }
             }
 
@@ -80,8 +82,55 @@ class TableController extends Controller
             'table' => $table,
             'data' => $data,
             'columns' => $columns,
+            'foreignKeys' => $foreignKeys,
             'hasDatabase' => $hasDatabase,
             'isPinned' => in_array($table, $project->pinned_tables ?? []),
+        ]);
+    }
+
+    public function record(Request $request, string $table, string $id): Response
+    {
+        $project = Project::find($request->session()->get('current_project_id'));
+
+        $record = null;
+        $columns = [];
+        $foreignKeys = [];
+        $hasDatabase = false;
+        $tableExists = false;
+        $primaryKey = 'id';
+
+        if ($project && $project->hasDatabase()) {
+            $hasDatabase = true;
+            $dbService = new ProjectDatabaseService($project);
+
+            $result = $dbService->testConnection();
+            if ($result['connected']) {
+                // Validate table name against actual tables to prevent SQL injection
+                $availableTables = $dbService->getTables()->toArray();
+                if (in_array($table, $availableTables, true)) {
+                    $tableExists = true;
+                    $primaryKey = $dbService->getPrimaryKey($table) ?? 'id';
+                    $columns = $dbService->getTableColumns($table)->toArray();
+                    $foreignKeys = $dbService->getTableForeignKeys($table);
+                    $record = $dbService->getTableRow($table, $primaryKey, $id);
+                }
+            }
+
+            $dbService->disconnect();
+        }
+
+        if ($hasDatabase && (! $tableExists || ! $record)) {
+            abort(404, 'Record not found');
+        }
+
+        return Inertia::render('tables/record', [
+            'table' => $table,
+            'record' => $record,
+            'recordId' => $id,
+            'columns' => $columns,
+            'foreignKeys' => $foreignKeys,
+            'primaryKey' => $primaryKey,
+            'hasDatabase' => $hasDatabase,
         ]);
     }
 
