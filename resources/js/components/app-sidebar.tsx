@@ -13,9 +13,9 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { index as tablesIndex, show as showTable } from '@/actions/App/Http/Controllers/TableController';
+import { index as tablesIndex } from '@/actions/App/Http/Controllers/TableController';
 import { type NavItem, type SharedData } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { Database, Table2 } from 'lucide-react';
 
 const mainNavItems: NavItem[] = [
@@ -27,8 +27,32 @@ const mainNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-    const { currentProject } = usePage<SharedData>().props;
+    const { currentProject, url } = usePage<SharedData>().props;
     const pinnedTables = currentProject?.pinned_tables ?? [];
+
+    const handlePinnedTableClick = (
+        e: React.MouseEvent,
+        tableName: string,
+    ) => {
+        e.preventDefault();
+
+        // Check if we're already on the tables page
+        const isOnTablesPage =
+            window.location.pathname === '/tables' ||
+            window.location.pathname.startsWith('/tables');
+
+        if (isOnTablesPage) {
+            // Preserve state to keep existing tabs open
+            router.get(
+                tablesIndex().url,
+                { tab: tableName },
+                { preserveState: true, preserveScroll: true },
+            );
+        } else {
+            // Navigate to tables page with the tab parameter
+            router.visit(`${tablesIndex().url}?tab=${encodeURIComponent(tableName)}`);
+        }
+    };
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -47,10 +71,18 @@ export function AppSidebar() {
                                 {pinnedTables.map((tableName) => (
                                     <SidebarMenuItem key={tableName}>
                                         <SidebarMenuButton asChild>
-                                            <Link href={showTable.url(tableName)}>
+                                            <a
+                                                href={`${tablesIndex().url}?tab=${encodeURIComponent(tableName)}`}
+                                                onClick={(e) =>
+                                                    handlePinnedTableClick(
+                                                        e,
+                                                        tableName,
+                                                    )
+                                                }
+                                            >
                                                 <Table2 className="size-4" />
                                                 <span>{tableName}</span>
-                                            </Link>
+                                            </a>
                                         </SidebarMenuButton>
                                     </SidebarMenuItem>
                                 ))}

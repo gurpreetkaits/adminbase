@@ -1,12 +1,31 @@
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { TableTabBar } from '@/components/table-tab-bar';
+import { TableTabContent } from '@/components/table-tab-content';
+import {
+    TableTabsProvider,
+    useTableTabs,
+} from '@/contexts/table-tabs-context';
 import AppLayout from '@/layouts/app-layout';
-import { index as tablesIndex, show as showTable, pin, unpin } from '@/actions/App/Http/Controllers/TableController';
+import {
+    index as tablesIndex,
+    pin,
+    unpin,
+} from '@/actions/App/Http/Controllers/TableController';
 import { create as createProject } from '@/actions/App/Http/Controllers/ProjectController';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Database, Pin, PinOff, Table2, ExternalLink } from 'lucide-react';
-import { useState } from 'react';
+import {
+    ArrowDown,
+    ArrowUp,
+    ArrowUpDown,
+    Database,
+    Pin,
+    PinOff,
+    Search,
+    X,
+} from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -21,23 +40,55 @@ interface TableInfo {
     is_pinned: boolean;
 }
 
+interface Filters {
+    search?: string;
+    sort?: string;
+    direction?: 'asc' | 'desc';
+}
+
 interface Props {
     tables: TableInfo[];
     hasDatabase: boolean;
     pinnedTables: string[];
+    filters: Filters;
+    openTab?: string;
 }
 
-export default function TablesIndex({ tables, hasDatabase, pinnedTables: initialPinnedTables }: Props) {
+function TablesContent({
+    tables,
+    hasDatabase,
+    pinnedTables: initialPinnedTables,
+    filters,
+    openTab: initialOpenTab,
+}: Props) {
     const { currentProject } = usePage<SharedData>().props;
-    const [pinnedTables, setPinnedTables] = useState<string[]>(initialPinnedTables);
+    const { openTab, tabs } = useTableTabs();
+    const [pinnedTables, setPinnedTables] = useState<string[]>(
+        initialPinnedTables,
+    );
     const [pinning, setPinning] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState(filters.search ?? '');
+    const [lastOpenedTab, setLastOpenedTab] = useState<string | null>(null);
+
+    // Open tab from URL parameter when it changes
+    useEffect(() => {
+        if (initialOpenTab && initialOpenTab !== lastOpenedTab) {
+            openTab(initialOpenTab);
+            setLastOpenedTab(initialOpenTab);
+        }
+    }, [initialOpenTab, lastOpenedTab, openTab]);
 
     const getCsrfToken = (): string => {
         const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
         return match ? decodeURIComponent(match[1]) : '';
     };
 
-    const handleTogglePin = async (tableName: string, isPinned: boolean) => {
+    const handleTogglePin = async (
+        e: React.MouseEvent,
+        tableName: string,
+        isPinned: boolean,
+    ) => {
+        e.stopPropagation();
         setPinning(tableName);
 
         try {
@@ -47,7 +98,7 @@ export default function TablesIndex({ tables, hasDatabase, pinnedTables: initial
                 credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Accept': 'application/json',
+                    Accept: 'application/json',
                     'X-XSRF-TOKEN': getCsrfToken(),
                 },
             });
@@ -65,105 +116,232 @@ export default function TablesIndex({ tables, hasDatabase, pinnedTables: initial
         }
     };
 
+    const handleSort = (column: string) => {
+        const newDirection =
+            filters.sort === column && filters.direction === 'asc'
+                ? 'desc'
+                : 'asc';
+
+        router.get(
+            tablesIndex().url,
+            {
+                search: searchTerm || undefined,
+                sort: column,
+                direction: newDirection,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+            },
+        );
+    };
+
+    const handleSearch = (value: string) => {
+        setSearchTerm(value);
+    };
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            router.get(
+                tablesIndex().url,
+                {
+                    search: searchTerm || undefined,
+                    sort: filters.sort,
+                    direction: filters.direction,
+                },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                },
+            );
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    const getSortIcon = (column: string) => {
+        if (filters.sort !== column) {
+            return <ArrowUpDown className="ml-1 size-3 text-muted-foreground" />;
+        }
+        return filters.direction === 'asc' ? (
+            <ArrowUp className="ml-1 size-3" />
+        ) : (
+            <ArrowDown className="ml-1 size-3" />
+        );
+    };
+
+    const handleOpenTable = (tableName: string) => {
+        openTab(tableName);
+    };
+
     if (!hasDatabase) {
         return (
-            <AppLayout breadcrumbs={breadcrumbs}>
-                <Head title="Tables" />
-                <div className="flex h-full flex-1 flex-col items-center justify-center gap-4 p-4">
-                    <div className="rounded-xl border border-sidebar-border/70 p-8 text-center dark:border-sidebar-border">
-                        <Database className="mx-auto mb-4 size-12 text-muted-foreground" />
-                        <h2 className="mb-2 text-xl font-semibold">No Database Connected</h2>
-                        <p className="mb-4 text-muted-foreground">
-                            {currentProject?.name} doesn't have a database connection configured.
-                        </p>
-                        <Button asChild>
-                            <Link href={createProject().url}>Configure Database</Link>
-                        </Button>
-                    </div>
+            <div className="flex h-full flex-1 flex-col items-center justify-center gap-4 p-4">
+                <div className="rounded-xl border border-sidebar-border/70 p-8 text-center dark:border-sidebar-border">
+                    <Database className="mx-auto mb-4 size-12 text-muted-foreground" />
+                    <h2 className="mb-2 text-xl font-semibold">
+                        No Database Connected
+                    </h2>
+                    <p className="mb-4 text-muted-foreground">
+                        {currentProject?.name} doesn't have a database
+                        connection configured.
+                    </p>
+                    <Button asChild>
+                        <Link href={createProject().url}>
+                            Configure Database
+                        </Link>
+                    </Button>
                 </div>
-            </AppLayout>
+            </div>
         );
     }
 
-    return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Tables" />
-            <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold">Database Tables</h1>
-                        <p className="text-muted-foreground">
-                            Browse and pin tables from {currentProject?.name}
-                        </p>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                        {tables.length} tables
-                    </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {tables.length === 0 ? (
-                        <div className="col-span-full rounded-xl border border-sidebar-border/70 p-8 text-center text-muted-foreground dark:border-sidebar-border">
-                            No tables found in database.
-                        </div>
-                    ) : (
-                        tables.map((table) => {
-                            const isPinned = pinnedTables.includes(table.name);
-                            return (
-                                <div
-                                    key={table.name}
-                                    className="group rounded-xl border border-sidebar-border/70 p-4 transition-colors hover:bg-muted/50 dark:border-sidebar-border"
-                                >
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="flex items-center gap-3">
-                                            <Table2 className="size-5 text-muted-foreground" />
-                                            <div>
-                                                <h3 className="font-medium">{table.name}</h3>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {table.row_count.toLocaleString()} rows
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            {isPinned && (
-                                                <Badge variant="secondary" className="gap-1">
-                                                    <Pin className="size-3" />
-                                                    Pinned
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="mt-4 flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1"
-                                            asChild
-                                        >
-                                            <Link href={showTable.url(table.name)}>
-                                                <ExternalLink className="mr-2 size-4" />
-                                                View Data
-                                            </Link>
-                                        </Button>
-                                        <Button
-                                            variant={isPinned ? 'secondary' : 'outline'}
-                                            size="sm"
-                                            onClick={() => handleTogglePin(table.name, isPinned)}
-                                            disabled={pinning === table.name}
-                                        >
-                                            {isPinned ? (
-                                                <PinOff className="size-4" />
-                                            ) : (
-                                                <Pin className="size-4" />
-                                            )}
-                                        </Button>
-                                    </div>
-                                </div>
-                            );
-                        })
-                    )}
+    // If tabs are open, show the tabbed view
+    if (tabs.length > 0) {
+        return (
+            <div className="flex h-full flex-1 flex-col overflow-hidden">
+                <TableTabBar />
+                <div className="flex-1 overflow-hidden">
+                    <TableTabContent />
                 </div>
             </div>
-        </AppLayout>
+        );
+    }
+
+    // Otherwise show the table listing
+    return (
+        <div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-4">
+            {/* Header with search */}
+            <div className="flex shrink-0 items-center justify-between gap-4">
+                <div className="relative max-w-sm flex-1">
+                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                        type="text"
+                        placeholder="Search tables..."
+                        value={searchTerm}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        className="pl-9 pr-9"
+                    />
+                    {searchTerm && (
+                        <button
+                            onClick={() => handleSearch('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                            <X className="size-4" />
+                        </button>
+                    )}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                    {tables.length} tables
+                </div>
+            </div>
+
+            {/* Compact Table */}
+            <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
+                <div className="flex-1 overflow-auto">
+                    <table className="w-full">
+                        <thead className="sticky top-0 bg-background">
+                            <tr className="border-b border-sidebar-border/70 dark:border-sidebar-border">
+                                <th className="w-10 px-3 py-2 text-left"></th>
+                                <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground">
+                                    <button
+                                        onClick={() => handleSort('name')}
+                                        className="flex items-center hover:text-foreground"
+                                    >
+                                        Name
+                                        {getSortIcon('name')}
+                                    </button>
+                                </th>
+                                <th className="px-3 py-2 text-right text-sm font-medium text-muted-foreground">
+                                    <button
+                                        onClick={() => handleSort('row_count')}
+                                        className="ml-auto flex items-center hover:text-foreground"
+                                    >
+                                        Rows
+                                        {getSortIcon('row_count')}
+                                    </button>
+                                </th>
+                                <th className="w-16 px-3 py-2 text-right"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {tables.length === 0 ? (
+                                <tr>
+                                    <td
+                                        colSpan={4}
+                                        className="px-3 py-8 text-center text-muted-foreground"
+                                    >
+                                        {searchTerm
+                                            ? 'No tables found matching your search.'
+                                            : 'No tables found in database.'}
+                                    </td>
+                                </tr>
+                            ) : (
+                                tables.map((table) => {
+                                    const isPinned = pinnedTables.includes(
+                                        table.name,
+                                    );
+                                    return (
+                                        <tr
+                                            key={table.name}
+                                            className="group cursor-pointer border-b border-sidebar-border/70 last:border-0 hover:bg-muted/50 dark:border-sidebar-border"
+                                            onClick={() =>
+                                                handleOpenTable(table.name)
+                                            }
+                                        >
+                                            <td className="px-3 py-2">
+                                                {isPinned && (
+                                                    <Pin className="size-3.5 text-muted-foreground" />
+                                                )}
+                                            </td>
+                                            <td className="px-3 py-2 text-sm font-medium">
+                                                {table.name}
+                                            </td>
+                                            <td className="px-3 py-2 text-right text-sm text-muted-foreground">
+                                                {table.row_count.toLocaleString()}
+                                            </td>
+                                            <td className="px-3 py-2 text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="size-7 p-0 opacity-0 group-hover:opacity-100"
+                                                    onClick={(e) =>
+                                                        handleTogglePin(
+                                                            e,
+                                                            table.name,
+                                                            isPinned,
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        pinning === table.name
+                                                    }
+                                                >
+                                                    {isPinned ? (
+                                                        <PinOff className="size-3.5" />
+                                                    ) : (
+                                                        <Pin className="size-3.5" />
+                                                    )}
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function TablesIndex(props: Props) {
+    return (
+        <TableTabsProvider>
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <Head title="Tables" />
+                <TablesContent {...props} />
+            </AppLayout>
+        </TableTabsProvider>
     );
 }

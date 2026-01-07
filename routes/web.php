@@ -26,7 +26,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('tables', [TableController::class, 'index'])->name('tables.index');
     Route::get('tables/{table}', [TableController::class, 'show'])->name('tables.show');
+    Route::get('tables/{table}/data', [TableController::class, 'data'])->name('tables.data');
     Route::get('tables/{table}/record/{id}', [TableController::class, 'record'])->name('tables.record');
+    Route::put('tables/{table}/update', [TableController::class, 'update'])->name('tables.update');
     Route::post('tables/{table}/pin', [TableController::class, 'pin'])->name('tables.pin');
     Route::post('tables/{table}/unpin', [TableController::class, 'unpin'])->name('tables.unpin');
 });

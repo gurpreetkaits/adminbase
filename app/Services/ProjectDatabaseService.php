@@ -345,6 +345,31 @@ class ProjectDatabaseService
         }
     }
 
+    /**
+     * Update a row in a table by its primary key value.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function updateTableRow(string $table, string $primaryKey, mixed $id, array $data): bool
+    {
+        $connection = $this->connect();
+
+        if (! $connection) {
+            return false;
+        }
+
+        // Remove the primary key from update data if present
+        unset($data[$primaryKey]);
+
+        // Filter out null values for columns that shouldn't be null
+        // but keep explicitly set null values
+        $affected = $connection->table($table)
+            ->where($primaryKey, $id)
+            ->update($data);
+
+        return $affected > 0;
+    }
+
     public function disconnect(): void
     {
         if ($this->connection) {
